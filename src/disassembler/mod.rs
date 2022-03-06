@@ -1,5 +1,5 @@
 pub fn disassemble(i: u16) -> String {
-    let hexes = ((i >> 8) & 0xF0, (i >> 8) & 0x0F, i & 0xF0, i & 0x0F);
+    let hexes = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0x0F);
     
     match hexes {
         (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),
@@ -29,7 +29,20 @@ pub fn disassemble(i: u16) -> String {
         (0xA, _, _, _) => format!("MVI {:03X}", i & 0xFFF),
         (0xB, _, _, _) => format!("JMI {:03X}", i & 0xFFF),
         (0xC, _, _, _) => format!("RAND V{:01X}, {:02X}", hexes.1, i & 0xFF),
-        (0xD, _, _, _) => format!("SPRITE V{:01X}, V{:01X}, {:01X}", hexes.1, hexes.2, hexes.3),
+        (0xD, _, _, 0x0) => format!("XSPRITE R{:01X}, R{:01X}", hexes.1, hexes.2), // Pattern order is important
+        (0xD, _, _, _) => format!("SPRITE V{:01X}, V{:01X}, {:01X}", hexes.1, hexes.2, hexes.3), // Pattern order is important
+        (0xE, _, 0x9, 0xE) => format!("SKPR K{:01X}", hexes.1),
+        (0xE, _, 0xA, 0x1) => format!("SKUP K{:01X}", hexes.1),
+        (0xF, _, 0x0, 0x7) => format!("GDELAY V{:01X}", hexes.1),
+        (0xF, _, 0x0, 0xA) => format!("KEY V{:01X}", hexes.1),
+        (0xF, _, 0x1, 0x5) => format!("SDELAY V{:01X}", hexes.1),
+        (0xF, _, 0x1, 0x8) => format!("SSOUND V{:01X}", hexes.1),
+        (0xF, _, 0x1, 0xE) => format!("ADI V{:01X}", hexes.1),
+        (0xF, _, 0x2, 0x9) => format!("FONT V{:01X}", hexes.1),
+        (0xF, _, 0x3, 0x0) => format!("XFONT V{:01X}", hexes.1),
+        (0xF, _, 0x3, 0x3) => format!("BCD V{:01X}", hexes.1),
+        (0xF, _, 0x5, 0x5) => format!("STR V0-V{:01X}", hexes.1),
+        (0xF, _, 0x6, 0x5) => format!("LDR V0-V{:01X}", hexes.1),
         _ => format!("Uninplemented instruction")
     }
 }
