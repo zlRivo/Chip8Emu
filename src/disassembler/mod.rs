@@ -1,7 +1,7 @@
 // Disassemble an instruction
 pub fn disassemble(instr: u16) -> String {
     let i = instr;
-    let hexes = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0x0F);
+    let hexes = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0xF);
     
     match hexes {
         (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),

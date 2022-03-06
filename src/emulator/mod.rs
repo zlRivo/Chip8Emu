@@ -45,4 +45,14 @@ impl Chip8 {
         }
         self
     }
+
+    fn exec(&mut self) -> Result<(), ()> {
+        match self.memory.get(self.pc as usize) {
+            Some(&instr) => match instr {
+                // Add more instructions here
+                _ => return Err(())
+            },
+            None => panic!("Program counter is outside memory !")
+        }
+    }
 }
