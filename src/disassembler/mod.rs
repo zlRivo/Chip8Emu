@@ -1,4 +1,6 @@
-pub fn disassemble(i: u16) -> String {
+// Disassemble an instruction
+pub fn disassemble(instr: u16) -> String {
+    let i = instr;
     let hexes = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0x0F);
     
     match hexes {
@@ -45,4 +47,15 @@ pub fn disassemble(i: u16) -> String {
         (0xF, _, 0x6, 0x5) => format!("LDR V0-V{:01X}", hexes.1),
         _ => format!("Uninplemented instruction")
     }
+}
+
+/// Disassemble a vector of instructions
+pub fn disassemble_all(instr_vec: Vec<u16>) -> String {
+    let mut output = Vec::<String>::new();
+    let mut i = 1;
+    for b in instr_vec {
+        output.push(format!("0x{:04X}\t0x{:04X} -> {} ", i - 1, b, disassemble(b)));
+        i += 2;
+    }
+    output.join("\n")
 }

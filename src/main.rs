@@ -21,14 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         index += 2;
     }
-
-    // Print all bytes
-    let mut i = 1;
-    for b in new_bytes {
-        println!("0x{:04X} -> {} ", b, disassemble(b));
-        if i % 5 == 0 { println!(""); }
-        i += 1;
-    }
+    println!("{}", disassemble_all(new_bytes));
     
     Ok(())
 }
