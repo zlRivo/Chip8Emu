@@ -1,4 +1,4 @@
-// Disassemble an instruction
+/// Disassemble an instruction
 pub fn disassemble(instr: u16) -> String {
     let i = instr;
     let hexes = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0xF);
