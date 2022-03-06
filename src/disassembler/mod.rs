@@ -52,9 +52,9 @@ pub fn disassemble(instr: u16) -> String {
 /// Disassemble a vector of instructions
 pub fn disassemble_all(instr_vec: Vec<u16>) -> String {
     let mut output = Vec::<String>::new();
-    let mut i = 1;
+    let mut i = 0;
     for b in instr_vec {
-        output.push(format!("0x{:04X}\t0x{:04X} -> {} ", i - 1, b, disassemble(b)));
+        output.push(format!("0x{:04X}\t0x{:04X} -> {} ", i, b, disassemble(b)));
         i += 2;
     }
     output.join("\n")
