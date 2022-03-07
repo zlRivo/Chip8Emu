@@ -7,7 +7,7 @@ use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Read rom as vector of bytes
-    let bytes = fs::read("../roms/Airplane.ch8")?;
+    let bytes = fs::read("./roms/Airplane.ch8")?;
     let mut new_bytes = Vec::<u16>::new();
     let mut index = 0;
     while index <= bytes.len() {

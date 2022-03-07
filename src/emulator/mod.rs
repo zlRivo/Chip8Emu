@@ -1,5 +1,6 @@
 pub struct Chip8 {
     memory: [u8; 0xFFF],
+    freq: u32, // Number of instructions ran per second
     pc: u16,
     i: u16,
     stack: Vec<u16>,
@@ -11,9 +12,10 @@ pub struct Chip8 {
 
 impl Chip8 {
     /// Returns a new instance
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             memory: [0u8; 0xFFF],
+            freq: 700,
             pc: 0x200,
             i: 0x0000,
             stack: Vec::new(),
@@ -25,7 +27,7 @@ impl Chip8 {
     }
 
     /// Loads the program (as a byte vector) into the emulator memory
-    fn load_program(mut self, prog: Vec<u8>) -> Self {
+    pub fn load_program(mut self, prog: Vec<u8>) -> Self {
         // Limit bytes
         let prog: Vec<u8> = prog.into_iter().take(0xFFF - 0x200).collect();
         // Write to memory
@@ -36,7 +38,7 @@ impl Chip8 {
     }
 
     /// Sets the font for the emulator
-    fn load_font(mut self, font: Vec<u8>) -> Self {
+    pub fn load_font(mut self, font: Vec<u8>) -> Self {
         // Limit bytes
         let font: Vec<u8> = font.into_iter().take(0x9F - 0x50).collect();
         // Write to memory
@@ -46,13 +48,126 @@ impl Chip8 {
         self
     }
 
-    fn exec(&mut self) -> Result<(), ()> {
-        match self.memory.get(self.pc as usize) {
-            Some(&instr) => match instr {
-                // Add more instructions here
-                _ => return Err(())
+    /// Set the frequency of the processor (Hz)
+    pub fn set_freq(mut self, freq: u32) -> Self {
+        self.freq = freq;
+        self
+    }
+
+    /// Returns the frequency of the processor (Hz)
+    pub fn get_freq(&self) -> u32 {
+        self.freq
+    }
+
+    /// Fetch the two succeeding bytes at pc
+    pub fn fetch(&mut self) -> u16 {
+        match (self.memory.get(self.pc as usize), self.memory.get((self.pc + 1) as usize)) {
+            (Some(&b1), Some(&b2)) => {
+                self.pc += 2; // Increment pc
+                ((b1 as u16) << 8) | b2 as u16 // Return the two fetched bytes
             },
-            None => panic!("Program counter is outside memory !")
+            (_, _) => panic!("Couldn't fetch two bytes at program counter !")
+        }
+    }
+
+    /// Executes a u16 instruction
+    pub fn exec(&mut self, instr: u16) -> Result<(), ()> {
+        let i = instr;
+        let nibbles = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0xF);
+        let (b1, b2, imm_address) = ((i >> 8) & 0xFF, i & 0xFF, i & 0xFFF);
+        
+        match nibbles {
+            // (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),
+            (0x0, 0x0, 0xE, 0x0) => {
+                self.clear_screen();
+                Ok(())
+            },
+            // (0x0, 0x0, 0xE, 0xE) => format!("RTS"),
+            // (0x0, 0x0, 0xF, 0xB) => format!("SCRIGHT"),
+            // (0x0, 0x0, 0xF, 0xC) => format!("SCLEFT"),
+            // (0x0, 0x0, 0xF, 0xE) => format!("LOW"),
+            // (0x0, 0x0, 0xF, 0xF) => format!("HIGH"),
+            (0x1, _, _, _) => { // JMP
+                self.jump_to(imm_address);
+                Ok(())
+            },
+            // (0x2, _, _, _) => format!("JSR {:03X}", imm_address),
+            // (0x3, _, _, _) => format!("SKEQ V{:01X}, {:02X}", nibbles.1, b2),
+            // (0x4, _, _, _) => format!("SKNE V{:01X}, {:02X}", nibbles.1, b2),
+            // (0x5, _, _, 0x0) => format!("SKEQ V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            (0x6, _, _, _) => { // MOV VX, NN
+                self.set_reg((nibbles.1 & 0xF) as u8, b2 as u8)
+            },
+            (0x7, _, _, _) => { // ADD VX, NN
+                // Get register value
+                match self.get_reg(nibbles.1 as u8) {
+                    Some(v) => {
+                        return self.set_reg((nibbles.1 & 0xF) as u8, b2 as u8 + v as u8) // No overflow check
+                    },
+                    None => return Err(())
+                }
+            },
+            // (0x8, _, _, 0x0) => format!("MOV V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            // (0x8, _, _, 0x1) => format!("OR V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            // (0x8, _, _, 0x2) => format!("AND V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            // (0x8, _, _, 0x3) => format!("XOR V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            // (0x8, _, _, 0x4) => format!("ADD V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            // (0x8, _, _, 0x5) => format!("SUB V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            // (0x8, _, 0x0, 0x6) => format!("SHR V{:01X}", nibbles.1),
+            // (0x8, _, _, 0x7) => format!("RSB V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            // (0x8, _, 0x0, 0xE) => format!("SHL V{:01X}", nibbles.1),
+            // (0x9, _, _, 0x0) => format!("SKNE V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            (0xA, _, _, _) => { // MVI I NNN (Sets i register)
+                self.set_reg(nibbles.1 as u8, b2 as u8)
+            },
+            // (0xB, _, _, _) => format!("JMI {:03X}", imm_address),
+            // (0xC, _, _, _) => format!("RAND V{:01X}, {:02X}", nibbles.1, b2),
+            // (0xD, _, _, 0x0) => format!("XSPRITE R{:01X}, R{:01X}", nibbles.1, nibbles.2), // Pattern order is important
+            // (0xD, _, _, _) => format!("SPRITE V{:01X}, V{:01X}, {:01X}", nibbles.1, nibbles.2, nibbles.3), // Pattern order is important
+            // (0xE, _, 0x9, 0xE) => format!("SKPR K{:01X}", nibbles.1),
+            // (0xE, _, 0xA, 0x1) => format!("SKUP K{:01X}", nibbles.1),
+            // (0xF, _, 0x0, 0x7) => format!("GDELAY V{:01X}", nibbles.1),
+            // (0xF, _, 0x0, 0xA) => format!("KEY V{:01X}", nibbles.1),
+            // (0xF, _, 0x1, 0x5) => format!("SDELAY V{:01X}", nibbles.1),
+            // (0xF, _, 0x1, 0x8) => format!("SSOUND V{:01X}", nibbles.1),
+            // (0xF, _, 0x1, 0xE) => format!("ADI V{:01X}", nibbles.1),
+            // (0xF, _, 0x2, 0x9) => format!("FONT V{:01X}", nibbles.1),
+            // (0xF, _, 0x3, 0x0) => format!("XFONT V{:01X}", nibbles.1),
+            // (0xF, _, 0x3, 0x3) => format!("BCD V{:01X}", nibbles.1),
+            // (0xF, _, 0x5, 0x5) => format!("STR V0-V{:01X}", nibbles.1),
+            // (0xF, _, 0x6, 0x5) => format!("LDR V0-V{:01X}", nibbles.1),
+            _ => return Err(())
+        }
+    }
+
+    // Clears display by setting all display values to false
+    fn clear_screen(&mut self) {
+        self.display.map(|_| [[false; 64]; 32]);
+    }
+
+    // Jump to address
+    fn jump_to(&mut self, addr: u16) {
+        self.pc = addr;
+    }
+
+    // Sets a register value
+    fn set_reg(&mut self, reg: u8, val: u8) -> Result<(), ()> {
+        match self.vars.get(reg as usize) {
+            Some(_) => {
+                self.vars[reg as usize] = val;
+                Ok(())
+            },
+            None => Err(())
+        }
+    }
+
+    /// Gets a register value
+    pub fn get_reg(&self, reg: u8) -> Option<u8> {
+        match self.vars.get(reg as usize) {
+            Some(_) => {
+                Some(self.vars[reg as usize])
+            },
+            None => None
         }
     }
 }
