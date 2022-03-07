@@ -122,8 +122,30 @@ impl Chip8 {
             },
             // (0xB, _, _, _) => format!("JMI {:03X}", imm_address),
             // (0xC, _, _, _) => format!("RAND V{:01X}, {:02X}", nibbles.1, b2),
-            // (0xD, _, _, 0x0) => format!("XSPRITE R{:01X}, R{:01X}", nibbles.1, nibbles.2), // Pattern order is important
-            // (0xD, _, _, _) => format!("SPRITE V{:01X}, V{:01X}, {:01X}", nibbles.1, nibbles.2, nibbles.3), // Pattern order is important
+            // (0xD, _, _, 0x0) => format!("XSPRITE R{:01X}, R{:01X}", nibbles.1, nibbles.2),
+            (0xD, _, _, _) => { // SRPITE VX, VY, N
+                if let (Some(mut x), Some(mut y)) = (self.get_reg(nibbles.1 as u8), self.get_reg(nibbles.2 as u8)) {
+                    // Get horizontal and vertical position using modulo
+                    x = x % 64;
+                    y = y % 32;
+
+                    // Set flag to 0 by default I guess ? --------------------------
+                    self.set_flag(0);
+
+                    // Write to scren
+                    for i in 0..nibbles.3 {
+                        match self.display[y as usize].get((x as u16 + i) as usize) {
+                            Some(_) => { self.display[y as usize][x as usize + i as usize] = true }, // Set pixel to true
+                            None => { // When out of bounds
+                                self.set_flag(1); // Set VF Flag
+                                break; // Break out of for loop
+                            }
+                        }
+                    }
+                    return Ok(());
+                } else { return Err(()); } // This shouldn't happen since a values red are between 0-F
+                
+            },
             // (0xE, _, 0x9, 0xE) => format!("SKPR K{:01X}", nibbles.1),
             // (0xE, _, 0xA, 0x1) => format!("SKUP K{:01X}", nibbles.1),
             // (0xF, _, 0x0, 0x7) => format!("GDELAY V{:01X}", nibbles.1),
@@ -142,7 +164,7 @@ impl Chip8 {
 
     // Clears display by setting all display values to false
     fn clear_screen(&mut self) {
-        self.display.map(|_| [[false; 64]; 32]);
+        self.display.map(|_| [false; 64]);
     }
 
     // Jump to address
@@ -169,5 +191,10 @@ impl Chip8 {
             },
             None => None
         }
+    }
+
+    // Set flag register (VF)
+    fn set_flag(&mut self, flag: u8) {
+        self.set_reg(0xF, flag).unwrap(); // I know 0xF is a valid register so I use unwrap
     }
 }
