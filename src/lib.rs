@@ -35,5 +35,6 @@ pub fn display_chip8(ctx: &mut Context, ch8display: [[bool; 64]; 32], colwhite: 
             graphics::draw(ctx, &pix_mesh, (Vec2::new(x as f32 * PIXEL_SIZE as f32, y as f32 * PIXEL_SIZE as f32),))?;
         }
     }
+    graphics::present(ctx)?; // Update context
     Ok(())
 }
