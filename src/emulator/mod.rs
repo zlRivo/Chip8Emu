@@ -1,3 +1,5 @@
+use crate::disassembler::disassemble;
+
 pub struct Chip8 {
     memory: [u8; 0xFFF],
     freq: u32, // Number of instructions ran per second
@@ -76,6 +78,9 @@ impl Chip8 {
         let nibbles = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0xF);
         let (b1, b2, imm_address) = ((i >> 8) & 0xFF, i & 0xFF, i & 0xFFF);
         
+        // For debugging
+        println!("{}", disassemble(instr));
+
         match nibbles {
             // (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),
             (0x0, 0x0, 0xE, 0x0) => {
@@ -164,7 +169,7 @@ impl Chip8 {
 
     // Clears display by setting all display values to false
     fn clear_screen(&mut self) {
-        self.display.map(|_| [false; 64]);
+        self.display.map(|mut e| e = [false; 64]);
     }
 
     /// Returns the display values
