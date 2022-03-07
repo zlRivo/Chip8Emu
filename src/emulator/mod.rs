@@ -167,6 +167,11 @@ impl Chip8 {
         self.display.map(|_| [false; 64]);
     }
 
+    /// Returns the display values
+    pub fn get_display(&self) -> [[bool; 64]; 32] {
+        self.display
+    }
+
     // Jump to address
     fn jump_to(&mut self, addr: u16) {
         self.pc = addr;

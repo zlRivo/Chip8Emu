@@ -22,5 +22,7 @@ fn main() -> GameResult {
     let WHITE: Color = Color::from_rgb_u32(0xAAB3B0); // Define black and white pixel color
     let BLACK = Color::from_rgb_u32(0x292C35);
 
+    display_chip8(&mut ctx, emu.get_display(), WHITE, BLACK)?;
+
     Ok(())
 }

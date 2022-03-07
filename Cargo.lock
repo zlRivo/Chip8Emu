@@ -271,6 +271,7 @@ name = "chip8emu"
 version = "0.1.0"
 dependencies = [
  "ggez",
+ "glam",
  "rand",
 ]
 
