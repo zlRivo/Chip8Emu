@@ -51,12 +51,30 @@ pub fn disassemble(instr: u16) -> String {
 }
 
 /// Disassemble a vector of instructions
-pub fn disassemble_all(instr_vec: Vec<u16>) -> String {
+pub fn disassemble_all(instr_vec: &Vec<u16>) -> String {
     let mut output = Vec::<String>::new();
     let mut i = 0;
     for b in instr_vec {
-        output.push(format!("0x{:04X}\t0x{:04X} -> {} ", i, b, disassemble(b)));
+        output.push(format!("0x{:04X}\t0x{:04X} -> {} ", i, b, disassemble(*b)));
         i += 2;
     }
     output.join("\n")
+}
+
+/// Pair vector of bytes
+pub fn pair_bytes(vec: &Vec<u8>) -> Vec<u16> {
+    let mut new_bytes = Vec::<u16>::new();
+    let mut index = 0;
+    while index <= vec.len() {
+        // Check if there is a pair
+        if let (Some(&b1), Some(&b2)) = (vec.get(index), vec.get(index + 1)) {
+            // Convert pair to u16
+            new_bytes.push(((b1 as u16) << 8) as u16 | b2 as u16);
+        } else if let Some(b1) = vec.get(index) {
+            // Convert byte to u16
+            new_bytes.push(((*b1 as u16) << 8) as u16);
+        }
+        index += 2;
+    }
+    new_bytes
 }

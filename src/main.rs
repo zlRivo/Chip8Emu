@@ -1,27 +1,26 @@
 mod emulator;
 mod disassembler;
 
+use chip8emu::*;
 use disassembler::*;
-
+use emulator::Chip8;
 use std::fs;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Read rom as vector of bytes
+use ggez::GameResult;
+use ggez::graphics::Color;
+
+#[allow(non_snake_case)]
+
+fn main() -> GameResult {
+    // Read instructions
     let bytes = fs::read("./roms/Airplane.ch8")?;
-    let mut new_bytes = Vec::<u16>::new();
-    let mut index = 0;
-    while index <= bytes.len() {
-        // Check if there is a pair
-        if let (Some(&b1), Some(&b2)) = (bytes.get(index), bytes.get(index + 1)) {
-            // Convert pair to u16
-            new_bytes.push(((b1 as u16) << 8) as u16 | b2 as u16);
-        } else if let Some(b1) = bytes.get(index) {
-            // Convert byte to u16
-            new_bytes.push(((*b1 as u16) << 8) as u16);
-        }
-        index += 2;
-    }
-    println!("{}", disassemble_all(new_bytes));
-    
+    println!("{}", disassemble_all(&disassembler::pair_bytes(&bytes)));
+
+    let (mut ctx, events_loop) = build_context()?; // Create context
+    let emu = Chip8::new().load_program(bytes); // Create emulator
+
+    let WHITE: Color = Color::from_rgb_u32(0xAAB3B0); // Define black and white pixel color
+    let BLACK = Color::from_rgb_u32(0x292C35);
+
     Ok(())
 }
