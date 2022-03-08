@@ -19,7 +19,7 @@ impl Chip8 {
             memory: [0u8; 0xFFF],
             freq: 700,
             pc: 0x200,
-            i: 0x0000,
+            i: 0x0050,
             stack: Vec::new(),
             vars: [0u8; 0xF0],
             display: [[false; 64]; 32],
@@ -39,13 +39,13 @@ impl Chip8 {
         self
     }
 
-    /// Sets the font for the emulator
-    pub fn load_font(mut self, font: Vec<u8>) -> Self {
+    /// Sets the font for the emulator within 0x000-0x200
+    pub fn load_font(mut self, font: Vec<u8>, addr: u16) -> Self {
         // Limit bytes
-        let font: Vec<u8> = font.into_iter().take(0x9F - 0x50).collect();
+        let font: Vec<u8> = font.into_iter().take(0x200 - addr as usize).collect();
         // Write to memory
         for (i, b) in font.iter().enumerate() {
-            self.memory[0x50 + i] = *b;
+            self.memory[addr as usize + i] = *b;
         }
         self
     }
@@ -61,6 +61,16 @@ impl Chip8 {
         self.freq
     }
 
+    /// Returns byte pointed at the I register
+    pub fn read_at_i(&self, offset: u8) -> Option<u8> {
+        self.memory.get(self.i as usize + offset as usize).copied()
+    }
+
+    // Sets the value of the I register
+    fn set_i(&mut self, val: u16) {
+        self.i = val & 0xFFF;
+    }
+
     /// Fetch the two succeeding bytes at pc
     pub fn fetch(&mut self) -> u16 {
         match (self.memory.get(self.pc as usize), self.memory.get((self.pc + 1) as usize)) {
@@ -72,18 +82,35 @@ impl Chip8 {
         }
     }
 
+    // Push value onto stack and checks for overflow
+    fn push_stack(&mut self, val: u16) {
+        if self.stack.len() >= 16 { panic!("Stack overflow !"); }
+        self.stack.push(val);
+    }
+    
+    // Pops last stack value
+    fn pop_stack(&mut self) -> Option<u16> {
+        self.stack.pop()
+    }
+
+    /// Decodes a u16 instruction into hex
+    pub fn decode_to_nibbles(instr: u16) -> (u8, u8, u8, u8) {
+        let i = instr;
+        (((i >> 12) & 0xF) as u8, ((i >> 8) & 0xF) as u8, ((i >> 4) & 0xF) as u8, (i & 0xF) as u8)
+    }
+
     /// Executes a u16 instruction
     pub fn exec(&mut self, instr: u16) -> Result<(), ()> {
         let i = instr;
-        let nibbles = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0xF);
-        let (b1, b2, imm_address) = ((i >> 8) & 0xFF, i & 0xFF, i & 0xFFF);
+        let nibbles = Self::decode_to_nibbles(i);
+        let (b2, imm_address) = ((i & 0xFF) as u8, (i & 0xFFF) as u16);
         
         // For debugging
         println!("{}", disassemble(instr));
 
         match nibbles {
             // (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),
-            (0x0, 0x0, 0xE, 0x0) => {
+            (0x0, 0x0, 0xE, 0x0) => { // Clear screen
                 self.clear_screen();
                 Ok(())
             },
@@ -101,13 +128,13 @@ impl Chip8 {
             // (0x4, _, _, _) => format!("SKNE V{:01X}, {:02X}", nibbles.1, b2),
             // (0x5, _, _, 0x0) => format!("SKEQ V{:01X}, V{:01X}", nibbles.1, nibbles.2),
             (0x6, _, _, _) => { // MOV VX, NN
-                self.set_reg((nibbles.1 & 0xF) as u8, b2 as u8)
+                self.set_reg(nibbles.1 & 0xF, b2)
             },
             (0x7, _, _, _) => { // ADD VX, NN
                 // Get register value
-                match self.get_reg(nibbles.1 as u8) {
+                match self.get_reg(nibbles.1) {
                     Some(v) => {
-                        return self.set_reg((nibbles.1 & 0xF) as u8, b2 as u8 + v as u8) // No overflow check
+                        return self.set_reg(nibbles.1 & 0xF, b2 + v) // No overflow check
                     },
                     None => return Err(())
                 }
@@ -123,33 +150,14 @@ impl Chip8 {
             // (0x8, _, 0x0, 0xE) => format!("SHL V{:01X}", nibbles.1),
             // (0x9, _, _, 0x0) => format!("SKNE V{:01X}, V{:01X}", nibbles.1, nibbles.2),
             (0xA, _, _, _) => { // MVI I NNN (Sets i register)
-                self.set_reg(nibbles.1 as u8, b2 as u8)
+                self.set_i(imm_address);
+                Ok(())
             },
             // (0xB, _, _, _) => format!("JMI {:03X}", imm_address),
             // (0xC, _, _, _) => format!("RAND V{:01X}, {:02X}", nibbles.1, b2),
             // (0xD, _, _, 0x0) => format!("XSPRITE R{:01X}, R{:01X}", nibbles.1, nibbles.2),
             (0xD, _, _, _) => { // SRPITE VX, VY, N
-                if let (Some(mut x), Some(mut y)) = (self.get_reg(nibbles.1 as u8), self.get_reg(nibbles.2 as u8)) {
-                    // Get horizontal and vertical position using modulo
-                    x = x % 64;
-                    y = y % 32;
-
-                    // Set flag to 0 by default I guess ? --------------------------
-                    self.set_flag(0);
-
-                    // Write to scren
-                    for i in 0..nibbles.3 {
-                        match self.display[y as usize].get((x as u16 + i) as usize) {
-                            Some(_) => { self.display[y as usize][x as usize + i as usize] = true }, // Set pixel to true
-                            None => { // When out of bounds
-                                self.set_flag(1); // Set VF Flag
-                                break; // Break out of for loop
-                            }
-                        }
-                    }
-                    return Ok(());
-                } else { return Err(()); } // This shouldn't happen since a values red are between 0-F
-                
+                self.display(nibbles.1, nibbles.2, nibbles.3)
             },
             // (0xE, _, 0x9, 0xE) => format!("SKPR K{:01X}", nibbles.1),
             // (0xE, _, 0xA, 0x1) => format!("SKUP K{:01X}", nibbles.1),
@@ -169,7 +177,7 @@ impl Chip8 {
 
     // Clears display by setting all display values to false
     fn clear_screen(&mut self) {
-        self.display.map(|mut e| e = [false; 64]);
+        self.display.map(|_| [false; 64]);
     }
 
     /// Returns the display values
@@ -206,5 +214,63 @@ impl Chip8 {
     // Set flag register (VF)
     fn set_flag(&mut self, flag: u8) {
         self.set_reg(0xF, flag).unwrap(); // I know 0xF is a valid register so I use unwrap
+    }
+
+    // Draws onto the display
+    fn display(&mut self, reg_x: u8, reg_y: u8, n: u8) -> Result<(), ()> {
+        if let (Some(mut x), Some(mut y)) = (self.get_reg(reg_x), self.get_reg(reg_y)) {
+            // To store I byte
+            let mut sprite: u8;
+            // Get horizontal and vertical position using modulo
+            x = x % 64;
+            y = y % 32;
+            let mut row_x = x; // For resetting the x value
+
+            let mut bit: u8; // For knowing which bit to read in the sprite
+            let mut offset = 0; // I offset
+
+            // Set flag to 0 by default
+            self.set_flag(0);
+
+            // Limit n
+            let n = n & 0xF;
+
+            // Write to screen
+            for _ in 0..n {
+                bit = 0b1 << 7;
+                
+                // Read byte located at I + Offset
+                sprite = {
+                    match self.read_at_i(offset) {
+                        Some(v) => v,
+                        None => panic!("Register I out of bounds !")
+                    }
+                };
+
+                // Loop through each bit of the sprite
+                for _ in 0..8 {
+                    match self.display[y as usize].get(row_x as usize) {
+                        Some(_) => {
+                            if bit & sprite > 0x0 { // If the bit is set
+                                let pixel: &mut bool = &mut self.display[y as usize][row_x as usize]; // Get reference to pixel on the display
+                                *pixel = !*pixel; // Flip the pixel on display
+                                if *pixel == false { self.set_flag(1); } // Set the VF Flag if we turned off the pixel
+                            }
+                        }, 
+                        None => { // When out of bounds
+                            break; // Break out of for loop (go to next row)
+                        }
+                    }
+                    row_x += 1; // Increment X
+                    bit = bit >> 1; // Shift the bit
+                }
+                
+                offset += 1; // Increment offset
+                row_x = x; // Reset X
+                y += 1;
+                if y >= 64 { break; } // Break loop if y is outside display
+            }
+            return Ok(());
+        } else { return Err(()); }
     }
 }

@@ -26,13 +26,16 @@ fn main() -> GameResult {
     loop {
         let instr = emu.fetch();
         match emu.exec(instr) {
-            Err(_) => panic!("Failed to execute instruction 0x{:02X} !", instr),
+            Err(_) => panic!("Failed to execute instruction 0x{:04X} !", instr),
             _ => ()
         }
-        display_chip8(&mut ctx, emu.get_display(), WHITE, BLACK)?; // Debug
+        // Update display if instruction is clear screen or draw
+        match Chip8::decode_to_nibbles(instr) {
+            (0xD, _, _, _) | (0x0, 0x0, 0xE, 0x0) => {
+                display_chip8(&mut ctx, emu.get_display(), WHITE, BLACK)?; // Debug
+            },
+            (_, _, _, _) => ()
+        }
     }
-
-    display_chip8(&mut ctx, emu.get_display(), WHITE, BLACK)?;
-
-    Ok(())
+    // Ok(())
 }
