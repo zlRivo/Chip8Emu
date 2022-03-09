@@ -1,6 +1,6 @@
 use crate::disassembler::disassemble;
 use std::cmp::{min, max};
-
+use rand::Rng;
 pub struct Chip8 {
     memory: [u8; 0xFFF],
     freq: u32, // Number of instructions ran per second
@@ -10,7 +10,9 @@ pub struct Chip8 {
     vars: [u8; 0xF0],
     display: [[bool; 64]; 32],
     delay_timer: u8,
-    sound_timer: u8
+    sound_timer: u8,
+
+    rng: rand::rngs::ThreadRng // Generates rng numbers
 }
 
 impl Chip8 {
@@ -25,7 +27,9 @@ impl Chip8 {
             vars: [0u8; 0xF0],
             display: [[false; 64]; 32],
             delay_timer: 60,
-            sound_timer: 60
+            sound_timer: 60,
+
+            rng: rand::thread_rng()
         }
     }
 
@@ -254,8 +258,16 @@ impl Chip8 {
                 self.set_i(imm_address);
                 Ok(())
             },
-            // (0xB, _, _, _) => format!("JMI {:03X}", imm_address),
-            // (0xC, _, _, _) => format!("RAND V{:01X}, {:02X}", nibbles.1, b2),
+            (0xB, _, _, _) => { // JMI NNN (UNTESTED AMBIGUOUS)
+                self.jump_to(imm_address + self.get_reg(0x0).unwrap() as u16);
+                Ok(())
+            },
+            (0xC, _, _, _) => { // RAND VX, NN
+                if let Some(mut vx) = self.get_reg(nibbles.1) {
+                    vx = self.rng.gen::<u8>() & b2; // Generate a random number and binary ANDs the number with the second byte
+                    Ok(())
+                } else { return Err(()) }
+            },
             // (0xD, _, _, 0x0) => format!("XSPRITE R{:01X}, R{:01X}", nibbles.1, nibbles.2),
             (0xD, _, _, _) => { // SRPITE VX, VY, N
                 self.display(nibbles.1, nibbles.2, nibbles.3)
