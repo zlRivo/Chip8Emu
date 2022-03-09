@@ -212,14 +212,38 @@ impl Chip8 {
                     let val = if vx < vy { // Check underflow
                         self.set_flag(0);
                         0xFF - diff
-                    } else { self.set_flag(0); vx - diff };
+                    } else { self.set_flag(1); vx - diff };
                     self.set_reg(nibbles.1, val)?;
                     Ok(())
                 } else { return Err(()) }
             },
-            // (0x8, _, 0x0, 0x6) => format!("SHR V{:01X}", nibbles.1),
-            // (0x8, _, _, 0x7) => format!("RSB V{:01X}, V{:01X}", nibbles.1, nibbles.2),
-            // (0x8, _, 0x0, 0xE) => format!("SHL V{:01X}", nibbles.1),
+            (0x8, _, _, 0x6) => { // SHR VX (UNTESTED AMBIGUOUS)
+                if let (Some(mut vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    vx = vy; // Optional
+                    self.set_flag(vx & 0x1); // Set VF flag (Check least significant bit)
+                    self.set_reg(nibbles.1, (vx >> 1) & 0xFF)?; // Shift VX
+                    Ok(())
+                } else { return Err(()) }
+            },
+            (0x8, _, _, 0x7) => { // RSB VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    let diff = max(vx, vy) - min(vx, vy); // For knowing how much to subtract
+                    let val = if vy < vx { // Check underflow
+                        self.set_flag(0);
+                        0xFF - diff
+                    } else { self.set_flag(1); vy - diff };
+                    self.set_reg(nibbles.1, val)?;
+                    Ok(())
+                } else { return Err(()) }
+            },
+            (0x8, _, _, 0xE) => { // SHL VX (UNTESTED AMBIGUOUS)
+                if let (Some(mut vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    vx = vy; // Optional
+                    self.set_flag((vx >> 7) & 0x1); // Set VF flag (Check most significant bit)
+                    self.set_reg(nibbles.1, (vx << 1) & 0xFF)?; // Shift VX
+                    Ok(())
+                } else { return Err(()) }
+            },
             (0x9, _, _, 0x0) => { // SKNE VX, VY (UNTESTED)
                 if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
                     if vx != vy { self.pc += 2; } // Skip next instruction
