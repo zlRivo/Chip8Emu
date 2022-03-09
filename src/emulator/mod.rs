@@ -1,4 +1,5 @@
 use crate::disassembler::disassemble;
+use std::cmp::{min, max};
 
 pub struct Chip8 {
     memory: [u8; 0xFFF],
@@ -194,8 +195,28 @@ impl Chip8 {
                     Ok(())
                 } else { return Err(()) }
             },
-            // (0x8, _, _, 0x4) => format!("ADD V{:01X}, V{:01X}", nibbles.1, nibbles.2),
-            // (0x8, _, _, 0x5) => format!("SUB V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            (0x8, _, _, 0x4) => { // ADD VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    let val = (vx + vy) as u16; // u16 to prevent overflow
+                    self.set_flag({
+                        if val > 0xFF { 1 } // Set VF
+                        else { 0 }
+                    });
+                    self.set_reg(nibbles.1, (val & 0xFF) as u8)?;
+                    Ok(())
+                } else { return Err(()) }
+            },
+            (0x8, _, _, 0x5) => { // SUB VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    let diff = max(vx, vy) - min(vx, vy); // For knowing how much to subtract
+                    let val = if vx < vy { // Check underflow
+                        self.set_flag(0);
+                        0xFF - diff
+                    } else { self.set_flag(0); vx - diff };
+                    self.set_reg(nibbles.1, val)?;
+                    Ok(())
+                } else { return Err(()) }
+            },
             // (0x8, _, 0x0, 0x6) => format!("SHR V{:01X}", nibbles.1),
             // (0x8, _, _, 0x7) => format!("RSB V{:01X}, V{:01X}", nibbles.1, nibbles.2),
             // (0x8, _, 0x0, 0xE) => format!("SHL V{:01X}", nibbles.1),
