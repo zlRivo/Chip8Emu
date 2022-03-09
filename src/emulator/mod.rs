@@ -9,7 +9,7 @@ pub struct Chip8 {
     vars: [u8; 0xF0],
     display: [[bool; 64]; 32],
     delay_timer: u8,
-    sound_timer: u8,
+    sound_timer: u8
 }
 
 impl Chip8 {
@@ -85,12 +85,15 @@ impl Chip8 {
     // Push value onto stack and checks for overflow
     fn push_stack(&mut self, val: u16) {
         if self.stack.len() >= 16 { panic!("Stack overflow !"); }
-        self.stack.push(val);
+        self.stack.push(val & 0xFFF);
     }
     
     // Pops last stack value
-    fn pop_stack(&mut self) -> Option<u16> {
-        self.stack.pop()
+    fn pop_stack(&mut self) -> u16 {
+        match self.stack.pop() {
+            Some(v) => v,
+            None => { panic!("No value in stack !") }
+        }
     }
 
     /// Decodes a u16 instruction into hex
@@ -114,7 +117,10 @@ impl Chip8 {
                 self.clear_screen();
                 Ok(())
             },
-            // (0x0, 0x0, 0xE, 0xE) => format!("RTS"),
+            (0x0, 0x0, 0xE, 0xE) => { // RTS (UNTESTED)
+                self.pc = self.pop_stack();
+                Ok(())
+            },
             // (0x0, 0x0, 0xF, 0xB) => format!("SCRIGHT"),
             // (0x0, 0x0, 0xF, 0xC) => format!("SCLEFT"),
             // (0x0, 0x0, 0xF, 0xE) => format!("LOW"),
@@ -123,10 +129,35 @@ impl Chip8 {
                 self.jump_to(imm_address);
                 Ok(())
             },
-            // (0x2, _, _, _) => format!("JSR {:03X}", imm_address),
-            // (0x3, _, _, _) => format!("SKEQ V{:01X}, {:02X}", nibbles.1, b2),
-            // (0x4, _, _, _) => format!("SKNE V{:01X}, {:02X}", nibbles.1, b2),
-            // (0x5, _, _, 0x0) => format!("SKEQ V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            (0x2, _, _, _) => { // JSR NNN (UNTESTED)
+                self.push_stack(self.pc); // Push pc into stack
+                self.jump_to(imm_address); // Jump to address
+                Ok(())
+            },
+            (0x3, _, _, _) => { // SKEQ VX, NN (UNTESTED)
+                match self.get_reg(nibbles.1) {
+                    Some(vx) => {
+                        if vx == b2 { self.pc += 2; } // Skip next instruction
+                        Ok(())
+                    },
+                    None => Err(())
+                }
+            },
+            (0x4, _, _, _) => { // SKNE VX, NN (UNTESTED)
+                match self.get_reg(nibbles.1) {
+                    Some(vx) => {
+                        if vx != b2 { self.pc += 2; } // Skip next instruction
+                        Ok(())
+                    },
+                    None => Err(())
+                }
+            },
+            (0x5, _, _, 0x0) => { // SKEQ VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    if vx == vy { self.pc += 2; } // Skip next instruction
+                    Ok(())
+                } else { return Err(()) }
+            },
             (0x6, _, _, _) => { // MOV VX, NN
                 self.set_reg(nibbles.1 & 0xF, b2)
             },
@@ -139,16 +170,41 @@ impl Chip8 {
                     None => return Err(())
                 }
             },
-            // (0x8, _, _, 0x0) => format!("MOV V{:01X}, V{:01X}", nibbles.1, nibbles.2),
-            // (0x8, _, _, 0x1) => format!("OR V{:01X}, V{:01X}", nibbles.1, nibbles.2),
-            // (0x8, _, _, 0x2) => format!("AND V{:01X}, V{:01X}", nibbles.1, nibbles.2),
-            // (0x8, _, _, 0x3) => format!("XOR V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            (0x8, _, _, 0x0) => { // MOV VX, VY (UNTESTED)
+                if let (Some(_), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    self.set_reg(nibbles.1, vy)?;
+                    Ok(())
+                } else { return Err(()) }
+            },
+            (0x8, _, _, 0x1) => { // OR VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    self.set_reg(nibbles.1, vx | vy)?;
+                    Ok(())
+                } else { return Err(()) }
+            },
+            (0x8, _, _, 0x2) => { // AND VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    self.set_reg(nibbles.1, vx & vy)?;
+                    Ok(())
+                } else { return Err(()) }
+            },
+            (0x8, _, _, 0x3) => { // XOR VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    self.set_reg(nibbles.1, vx ^ vy)?;
+                    Ok(())
+                } else { return Err(()) }
+            },
             // (0x8, _, _, 0x4) => format!("ADD V{:01X}, V{:01X}", nibbles.1, nibbles.2),
             // (0x8, _, _, 0x5) => format!("SUB V{:01X}, V{:01X}", nibbles.1, nibbles.2),
             // (0x8, _, 0x0, 0x6) => format!("SHR V{:01X}", nibbles.1),
             // (0x8, _, _, 0x7) => format!("RSB V{:01X}, V{:01X}", nibbles.1, nibbles.2),
             // (0x8, _, 0x0, 0xE) => format!("SHL V{:01X}", nibbles.1),
-            // (0x9, _, _, 0x0) => format!("SKNE V{:01X}, V{:01X}", nibbles.1, nibbles.2),
+            (0x9, _, _, 0x0) => { // SKNE VX, VY (UNTESTED)
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    if vx != vy { self.pc += 2; } // Skip next instruction
+                    Ok(())
+                } else { return Err(()) }
+            },
             (0xA, _, _, _) => { // MVI I NNN (Sets i register)
                 self.set_i(imm_address);
                 Ok(())
