@@ -13,7 +13,7 @@ use ggez::graphics::Color;
 
 fn main() -> GameResult {
     // Read instructions from binary
-    let bytes = fs::read("./roms/ibmlogo.ch8")?;
+    let bytes = fs::read("./roms/test_opcode.ch8")?;
     println!("{}", disassemble_all(&pair_bytes(&bytes)));
 
     let (mut ctx, events_loop) = build_context()?; // Create context

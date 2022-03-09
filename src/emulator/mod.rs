@@ -1,6 +1,7 @@
 use crate::disassembler::disassemble;
 use std::cmp::{min, max};
 use rand::Rng;
+
 pub struct Chip8 {
     memory: [u8; 0xFFF],
     freq: u32, // Number of instructions ran per second
@@ -11,6 +12,7 @@ pub struct Chip8 {
     display: [[bool; 64]; 32],
     delay_timer: u8,
     sound_timer: u8,
+    key_states: [bool; 16],
 
     rng: rand::rngs::ThreadRng // Generates rng numbers
 }
@@ -28,6 +30,7 @@ impl Chip8 {
             display: [[false; 64]; 32],
             delay_timer: 60,
             sound_timer: 60,
+            key_states: [false; 16],
 
             rng: rand::thread_rng()
         }
@@ -64,6 +67,27 @@ impl Chip8 {
     /// Returns the frequency of the processor (Hz)
     pub fn get_freq(&self) -> u32 {
         self.freq
+    }
+
+    /// Function to update the keys of the virtual keypad.
+    /// We need to update manually the key states within the program
+    /// itself to be library independent
+    pub fn update_key(&mut self, key: u8, val: bool) -> Result<(), ()> {
+        match self.key_states.get(key as usize) {
+            Some(_) => {
+                self.key_states[key as usize] = val;
+                Ok(())
+            },
+            None => Err(())
+        }
+    }
+
+    /// Returns key state
+    pub fn read_key(&self, key: u8) -> Result<bool, ()> {
+        match self.key_states.get(key as usize) {
+            Some(v) => Ok(*v),
+            None => Err(())
+        }
     }
 
     /// Returns byte pointed at the I register
@@ -170,7 +194,8 @@ impl Chip8 {
                 // Get register value
                 match self.get_reg(nibbles.1) {
                     Some(v) => {
-                        return self.set_reg(nibbles.1 & 0xF, b2 + v) // No overflow check
+                        let val: u16 = v as u16 + b2 as u16; // u16 to prevent overflow
+                        return self.set_reg(nibbles.1 & 0xF, (val & 0xFF) as u8)
                     },
                     None => return Err(())
                 }
@@ -201,7 +226,7 @@ impl Chip8 {
             },
             (0x8, _, _, 0x4) => { // ADD VX, VY (UNTESTED)
                 if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
-                    let val = (vx + vy) as u16; // u16 to prevent overflow
+                    let val = vx as u16 + vy as u16; // u16 to prevent overflow
                     self.set_flag({
                         if val > 0xFF { 1 } // Set VF
                         else { 0 }
@@ -272,8 +297,34 @@ impl Chip8 {
             (0xD, _, _, _) => { // SRPITE VX, VY, N
                 self.display(nibbles.1, nibbles.2, nibbles.3)
             },
-            // (0xE, _, 0x9, 0xE) => format!("SKPR K{:01X}", nibbles.1),
-            // (0xE, _, 0xA, 0x1) => format!("SKUP K{:01X}", nibbles.1),
+            (0xE, _, 0x9, 0xE) => { // SKPR KX
+                match self.get_reg(nibbles.1) {
+                    Some(v) => {
+                        match self.read_key(v) {
+                            Ok(pressed) => {
+                                if pressed { self.pc += 2; } // If the key is pressed we skip an instruction
+                                Ok(())
+                            },
+                            Err(_) => Err(())
+                        }
+                    },
+                    None => Err(())
+                }
+            },
+            (0xE, _, 0xA, 0x1) => { // SKUP KX
+                match self.get_reg(nibbles.1) {
+                    Some(v) => {
+                        match self.read_key(v) {
+                            Ok(pressed) => {
+                                if !pressed { self.pc += 2; } // If the key is pressed we skip an instruction
+                                Ok(())
+                            },
+                            Err(_) => Err(())
+                        }
+                    },
+                    None => Err(())
+                }
+            },
             // (0xF, _, 0x0, 0x7) => format!("GDELAY V{:01X}", nibbles.1),
             // (0xF, _, 0x0, 0xA) => format!("KEY V{:01X}", nibbles.1),
             // (0xF, _, 0x1, 0x5) => format!("SDELAY V{:01X}", nibbles.1),
