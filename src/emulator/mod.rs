@@ -90,6 +90,11 @@ impl Chip8 {
         }
     }
 
+    /// Returns sound timer
+    pub fn get_sound_timer(&self) -> u8 {
+        self.delay_timer
+    }
+
     /// Returns byte pointed at the I register
     pub fn read_at_i(&self, offset: u8) -> Option<u8> {
         self.memory.get(self.i as usize + offset as usize).copied()
@@ -247,8 +252,8 @@ impl Chip8 {
                 } else { return Err(()) }
             },
             (0x8, _, _, 0x6) => { // SHR VX (UNTESTED AMBIGUOUS)
-                if let (Some(mut vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
-                    vx = vy; // Optional
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    self.set_reg(nibbles.1, vy)?; // Optional (set vx to vy)
                     self.set_flag(vx & 0x1); // Set VF flag (Check least significant bit)
                     self.set_reg(nibbles.1, (vx >> 1) & 0xFF)?; // Shift VX
                     Ok(())
@@ -266,8 +271,8 @@ impl Chip8 {
                 } else { return Err(()) }
             },
             (0x8, _, _, 0xE) => { // SHL VX (UNTESTED AMBIGUOUS)
-                if let (Some(mut vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
-                    vx = vy; // Optional
+                if let (Some(vx), Some(vy)) = (self.get_reg(nibbles.1), self.get_reg(nibbles.2)) {
+                    self.set_reg(nibbles.1, vy)?; // Optional (set vx to vy)
                     self.set_flag((vx >> 7) & 0x1); // Set VF flag (Check most significant bit)
                     self.set_reg(nibbles.1, (vx << 1) & 0xFF)?; // Shift VX
                     Ok(())
@@ -288,8 +293,9 @@ impl Chip8 {
                 Ok(())
             },
             (0xC, _, _, _) => { // RAND VX, NN
-                if let Some(mut vx) = self.get_reg(nibbles.1) {
-                    vx = self.rng.gen::<u8>() & b2; // Generate a random number and binary ANDs the number with the second byte
+                if let Some(_) = self.get_reg(nibbles.1) {
+                    let val = self.rng.gen::<u8>() & b2; 
+                    self.set_reg(nibbles.1, val & 0xFF)?; // Generate a random number and binary ANDs the number with the second byte
                     Ok(())
                 } else { return Err(()) }
             },
@@ -297,7 +303,7 @@ impl Chip8 {
             (0xD, _, _, _) => { // SRPITE VX, VY, N
                 self.display(nibbles.1, nibbles.2, nibbles.3)
             },
-            (0xE, _, 0x9, 0xE) => { // SKPR KX
+            (0xE, _, 0x9, 0xE) => { // SKPR K
                 match self.get_reg(nibbles.1) {
                     Some(v) => {
                         match self.read_key(v) {
@@ -311,7 +317,7 @@ impl Chip8 {
                     None => Err(())
                 }
             },
-            (0xE, _, 0xA, 0x1) => { // SKUP KX
+            (0xE, _, 0xA, 0x1) => { // SKUP K
                 match self.get_reg(nibbles.1) {
                     Some(v) => {
                         match self.read_key(v) {
@@ -325,11 +331,55 @@ impl Chip8 {
                     None => Err(())
                 }
             },
-            // (0xF, _, 0x0, 0x7) => format!("GDELAY V{:01X}", nibbles.1),
-            // (0xF, _, 0x0, 0xA) => format!("KEY V{:01X}", nibbles.1),
-            // (0xF, _, 0x1, 0x5) => format!("SDELAY V{:01X}", nibbles.1),
-            // (0xF, _, 0x1, 0x8) => format!("SSOUND V{:01X}", nibbles.1),
-            // (0xF, _, 0x1, 0xE) => format!("ADI V{:01X}", nibbles.1),
+            (0xF, _, 0x0, 0x7) => { // GDELAY VR
+                self.set_reg(nibbles.1, self.delay_timer)
+            },
+            (0xF, _, 0x0, 0xA) => { // KEY VR (UNTESTED)
+                match self.get_reg(nibbles.1) {
+                    Some(_) => {
+                        let pressed_keys: Vec<(usize, bool)> = self.key_states.iter().copied() // Get all pressed keys
+                            .enumerate()
+                            .filter(|(_,  s)| *s == true)
+                            .collect();
+                        if pressed_keys.len() == 0 {
+                            self.pc -= 2; // Execute the same instruction
+                        } else {
+                            self.set_reg(nibbles.1, pressed_keys[0].0 as u8)?; // Return index of first pressed key
+                        }
+                        Ok(())
+                    },
+                    None => Err(())
+                }
+            },
+            (0xF, _, 0x1, 0x5) => { // SDELAY VR
+                match self.get_reg(nibbles.1) {
+                    Some(v) => {
+                        self.delay_timer = v;
+                        Ok(())
+                    },
+                    None => Err(())
+                }
+            },
+            (0xF, _, 0x1, 0x8) => { // SSOUND VR
+                match self.get_reg(nibbles.1) {
+                    Some(v) => {
+                        self.sound_timer = v;
+                        Ok(())
+                    },
+                    None => Err(())
+                }
+            },
+            (0xF, _, 0x1, 0xE) => { // ADI VR
+                match self.get_reg(nibbles.1) {
+                    Some(v) => {
+                        let val: u32 = self.i as u32 + v as u32;
+                        if val > 0xFFF { self.set_flag(1); } else { self.set_flag(0); } // Check overflow
+                        self.set_i((val & 0xFFF) as u16);
+                        Ok(())
+                    },
+                    None => Err(())
+                }
+            },
             // (0xF, _, 0x2, 0x9) => format!("FONT V{:01X}", nibbles.1),
             // (0xF, _, 0x3, 0x0) => format!("XFONT V{:01X}", nibbles.1),
             // (0xF, _, 0x3, 0x3) => format!("BCD V{:01X}", nibbles.1),

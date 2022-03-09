@@ -29,6 +29,9 @@ fn main() -> GameResult {
             Err(_) => panic!("Failed to execute instruction 0x{:04X} !", instr),
             _ => ()
         }
+
+        // PLAY BEEPING SOUND IF SOUND TIMER IS ABOVE 0
+        
         // Update display if instruction is clear screen or draw
         match Chip8::decode_to_nibbles(instr) {
             (0xD, _, _, _) | (0x0, 0x0, 0xE, 0x0) => {
