@@ -381,6 +381,7 @@ impl Chip8 {
             (0xF, _, 0x2, 0x9) => { // FONT VR
                 match self.get_reg(nibbles.1) { // Read VX register
                     Some(v) => {
+                        let v = v >> 4; // Get second nibble of register (COSMAC VIP)
                         self.set_i(0x050 + v as u16); // Hardcoded font location
                         Ok(())
                     },
