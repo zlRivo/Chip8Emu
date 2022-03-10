@@ -22,15 +22,13 @@ pub fn create_mesh(ctx: &mut Context, color: Color) -> Result<Mesh, GameError> {
 
 // Display a CHIP-8 display into a context
 pub fn display_chip8(ctx: &mut Context, ch8display: [[bool; 64]; 32], colwhite: Color, colblack: Color) -> Result<(), GameError> {
+    // Create color meshes
+    let mesh_white = create_mesh(ctx, colwhite)?;
+    let mesh_black = create_mesh(ctx, colblack)?;
     for (y, row) in ch8display.iter().enumerate() {
         for (x, pix) in row.iter().enumerate() {
-            let color = match pix {
-                true => colwhite,
-                false => colblack
-            };
-
             // Create a mesh for the pixel
-            let pix_mesh = create_mesh(ctx, color)?;
+            let pix_mesh = if *pix { mesh_white.clone() } else { mesh_black.clone() };
             // Add it onto the context
             graphics::draw(ctx, &pix_mesh, (Vec2::new(x as f32 * PIXEL_SIZE as f32, y as f32 * PIXEL_SIZE as f32),))?;
         }
