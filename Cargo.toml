@@ -7,5 +7,9 @@ edition = "2021"
 
 [dependencies]
 ggez = "0.7.0"
+winit = "0.26.1"
 glam = "0.20.2"
+
+ncurses = "5.101.0"
+
 rand = "0.8.5"

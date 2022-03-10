@@ -143,7 +143,7 @@ impl Chip8 {
         let (b2, imm_address) = ((i & 0xFF) as u8, (i & 0xFFF) as u16);
         
         // For debugging
-        println!("{}", disassemble(instr));
+        // println!("{}", disassemble(instr));
 
         match nibbles {
             // (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),
