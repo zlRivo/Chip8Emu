@@ -389,8 +389,54 @@ impl Chip8 {
                 }
             },
             // (0xF, _, 0x3, 0x0) => format!("XFONT V{:01X}", nibbles.1),
-            // (0xF, _, 0x3, 0x3) => format!("BCD V{:01X}", nibbles.1),
-            // (0xF, _, 0x5, 0x5) => format!("STR V0-V{:01X}", nibbles.1),
+            (0xF, _, 0x3, 0x3) => { // BCD VR
+                match self.get_reg(nibbles.1) { // Read VX register
+                    Some(v) => {
+                        // Check if I is pointing at valid space to store the decimal number
+                        if let (Some(_), Some(_), Some(_)) = (self.read_at_i(0), self.read_at_i(1), self.read_at_i(2)) {
+                            // Read digits
+                            let hundreds = v / 100 % 10;
+                            let tens = v / 10 % 10;
+                            let units = v % 10;
+
+                            // Write to memory
+                            self.memory[self.i as usize] = hundreds;
+                            self.memory[self.i as usize + 1] = tens;
+                            self.memory[self.i as usize + 2] = units;
+                        } else { return Err(()); }
+                        Ok(())
+                    },
+                    None => Err(())
+                }
+            },
+            (0xF, _, 0x5, 0x5) => { // STR V0-VX
+                // Check if I is pointing at valid space
+                for i in 0..=nibbles.1 {
+                    if let None = self.memory.get(self.i as usize + i as usize) {
+                        return Err(())
+                    }
+                }
+
+                // Store registers V0-VX into memory pointed at I
+                for i in 0..=nibbles.1 {
+                    self.memory[self.i as usize + i as usize] = self.get_reg(i).unwrap();
+                }
+                Ok(())
+            },
+            (0xF, _, 0x6, 0x5) => { // LDR V0-VX
+                // Check if I is pointing at valid space
+                for i in 0..=nibbles.1 {
+                    if let None = self.memory.get(self.i as usize + i as usize) {
+                        return Err(())
+                    }
+                }
+
+                // Load into register VX the value pointed by I (+ offset)
+                for i in 0..=nibbles.1 {
+                    self.set_reg(i, self.memory[self.i as usize + i as usize])?;
+                }
+                Ok(())
+            },
             // (0xF, _, 0x6, 0x5) => format!("LDR V0-V{:01X}", nibbles.1),
             _ => return Err(())
         }
