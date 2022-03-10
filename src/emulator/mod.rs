@@ -47,13 +47,13 @@ impl Chip8 {
         self
     }
 
-    /// Sets the font for the emulator within 0x000-0x200
-    pub fn load_font(mut self, font: Vec<u8>, addr: u16) -> Self {
+    /// Sets the font for the emulator within 0x050-0x200
+    pub fn load_font(mut self, font: Vec<u8>) -> Self {
         // Limit bytes
-        let font: Vec<u8> = font.into_iter().take(0x200 - addr as usize).collect();
+        let font: Vec<u8> = font.into_iter().take(0x200 - 0x050).collect();
         // Write to memory
         for (i, b) in font.iter().enumerate() {
-            self.memory[addr as usize + i] = *b;
+            self.memory[0x050 + i] = *b;
         }
         self
     }
@@ -378,7 +378,10 @@ impl Chip8 {
                     None => Err(())
                 }
             },
-            // (0xF, _, 0x2, 0x9) => format!("FONT V{:01X}", nibbles.1),
+            (0xF, _, 0x2, 0x9) => { // FONT VR
+                self.set_i(0x050 + nibbles.1 as u16); // Hardcoded font location
+                Ok(())
+            },
             // (0xF, _, 0x3, 0x0) => format!("XFONT V{:01X}", nibbles.1),
             // (0xF, _, 0x3, 0x3) => format!("BCD V{:01X}", nibbles.1),
             // (0xF, _, 0x5, 0x5) => format!("STR V0-V{:01X}", nibbles.1),
