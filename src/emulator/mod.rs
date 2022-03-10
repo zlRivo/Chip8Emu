@@ -379,8 +379,13 @@ impl Chip8 {
                 }
             },
             (0xF, _, 0x2, 0x9) => { // FONT VR
-                self.set_i(0x050 + nibbles.1 as u16); // Hardcoded font location
-                Ok(())
+                match self.get_reg(nibbles.1) { // Read VX register
+                    Some(v) => {
+                        self.set_i(0x050 + v as u16); // Hardcoded font location
+                        Ok(())
+                    },
+                    None => Err(())
+                }
             },
             // (0xF, _, 0x3, 0x0) => format!("XFONT V{:01X}", nibbles.1),
             // (0xF, _, 0x3, 0x3) => format!("BCD V{:01X}", nibbles.1),
