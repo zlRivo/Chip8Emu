@@ -337,15 +337,13 @@ impl Chip8 {
             (0xF, _, 0x0, 0xA) => { // KEY VR (UNTESTED)
                 match self.get_reg(nibbles.1) {
                     Some(_) => {
-                        let pressed_keys: Vec<(usize, bool)> = self.key_states.iter().copied() // Get all pressed keys
-                            .enumerate()
-                            .filter(|(_,  s)| *s == true)
-                            .collect();
-                        if pressed_keys.len() == 0 {
-                            self.pc -= 2; // Execute the same instruction
-                        } else {
-                            self.set_reg(nibbles.1, pressed_keys[0].0 as u8)?; // Return index of first pressed key
+                        for (i, val) in self.key_states.iter().enumerate() { // Loop through all the key states
+                            if *val {
+                                self.set_reg(nibbles.1, i as u8)?; // Set VX register to key index
+                                return Ok(()) // Exit function
+                            }
                         }
+                        self.pc -= 2; // Execute the same instruction if we didn't find any keypress
                         Ok(())
                     },
                     None => Err(())
