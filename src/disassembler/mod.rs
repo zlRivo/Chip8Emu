@@ -2,7 +2,7 @@
 pub fn disassemble(instr: u16) -> String {
     let i = instr;
     let nibbles = ((i >> 12) & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF, i & 0xF);
-    let (b1, b2, imm_address) = ((i >> 8) & 0xFF, i & 0xFF, i & 0xFFF);
+    let (_, b2, imm_address) = ((i >> 8) & 0xFF, i & 0xFF, i & 0xFFF);
     
     match nibbles {
         (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),

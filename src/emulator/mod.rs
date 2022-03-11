@@ -1,4 +1,3 @@
-use crate::disassembler::disassemble;
 use std::cmp::{min, max};
 use rand::Rng;
 
@@ -69,6 +68,17 @@ impl Chip8 {
         self.freq
     }
 
+    /// Decrements both timers
+    pub fn decr_timers(&mut self) {
+        self.delay_timer = if self.delay_timer >= 1 { self.delay_timer - 1 } else { 0 };
+        self.sound_timer = if self.sound_timer >= 1 { self.sound_timer - 1 } else { 0 };
+    }
+
+    /// Returns both timer values as tuple
+    pub fn get_timers(&self) -> (u8, u8) {
+        (self.delay_timer, self.sound_timer)
+    }
+
     /// Function to update the keys of the virtual keypad.
     /// We need to update manually the key states within the program
     /// itself to be library independent
@@ -88,6 +98,11 @@ impl Chip8 {
             Some(v) => Ok(*v),
             None => Err(())
         }
+    }
+
+    /// Returns all keys
+    pub fn read_all_keys(&self) -> [bool; 16] {
+        self.key_states
     }
 
     /// Returns sound timer
@@ -141,9 +156,6 @@ impl Chip8 {
         let i = instr;
         let nibbles = Self::decode_to_nibbles(i);
         let (b2, imm_address) = ((i & 0xFF) as u8, (i & 0xFFF) as u16);
-        
-        // For debugging
-        // println!("{}", disassemble(instr));
 
         match nibbles {
             // (0x0, 0x0, 0xC, _) => format!("SCDOWN {:01X}", i & 0xF),
