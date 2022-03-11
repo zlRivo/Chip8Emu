@@ -1,21 +1,23 @@
-use ncurses::*;
+use sdl2::{pixels::Color, render::Canvas};
+use sdl2::video::Window;
+use sdl2::rect::*;
 
-// Display a CHIP-8
-pub fn display_chip8(ch8display: [[bool; 64]; 32]) {
-    init_pair(1, COLOR_WHITE, COLOR_WHITE); // Create white color
-    init_pair(2, COLOR_BLACK, COLOR_BLACK); // Create black color
-    let mut x: usize;
+/// Displays a CHIP-8 onto a canvas (can overflow if pixel_size is too big)
+pub fn display_chip8(ch8display: [[bool; 64]; 32], canvas: &mut Canvas<Window>, pixel_size: u32, white: Color, black: Color) -> Result<(), String>{
     for (y, row) in ch8display.iter().enumerate() {
-        x = 0;
-        for pix in row.iter() {
-            let color_pair = if *pix { 1 } else { 2 };
-            attron(COLOR_PAIR(color_pair));
-            mvaddstr(y as i32, x as i32, "AA");
-            attroff(COLOR_PAIR(color_pair));
-            x += 2;
+        for (x, pix) in row.iter().enumerate() {
+            canvas.set_draw_color({ // Set draw color
+                if *pix { white } else { black }
+            });
+            canvas.fill_rect(Rect::new( // Draw the pixel
+                x as i32 * pixel_size as i32,
+                y as i32 * pixel_size as i32,
+             pixel_size,
+            pixel_size
+            ))?;
         }
     }
-    refresh();
+    Ok(())
 }
 
 pub fn get_default_font() -> Vec<u8> {
